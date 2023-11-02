@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:context=".MainActivity">
+
+    <Button
+        android:id="@+id/onOff"
+        android:layout_width="178dp"
+        android:layout_height="50dp"
+        android:layout_marginTop="64dp"
+        android:text="시스템 on/off"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.489"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/CH_RVI" />
+
+    <Button
+        android:id="@+id/CH_RVI"
+        android:layout_width="183dp"
+        android:layout_height="50dp"
+        android:layout_marginTop="64dp"
+        android:text="실시간영상 확인"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.486"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/btn_checkVideo" />
+
+    <Button
+        android:id="@+id/btn_checkVideo"
+        android:layout_width="183dp"
+        android:layout_height="50dp"
+        android:layout_marginTop="128dp"
+        android:text="영상확인"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.486"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <Button
+        android:id="@+id/ch_goout"
+        android:layout_width="183dp"
+        android:layout_height="50dp"
+        android:layout_marginTop="80dp"
+        android:text="출입확인"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/onOff" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>

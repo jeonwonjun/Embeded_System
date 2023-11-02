@@ -1,0 +1,212 @@
+여러 함수들을 정의하였다가 사용하지 않아 따로 정리해뒀다.
+// OnStop 아래
+public void Decording(String filePath) throws IOException {
+
+        String mime = "video/avc";
+        MediaFormat mediaFormat = MediaFormat.createVideoFormat(mime, 1920, 1088);
+        mediaFormat.setInteger(MediaFormat.KEY_BIT_RATE, 125000);
+        mediaFormat.setInteger(MediaFormat.KEY_FRAME_RATE, 15);
+        mediaFormat.setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420SemiPlanar);
+        mediaFormat.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 5);
+
+        MediaMuxer muxer = new MediaMuxer(filePath, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4);
+        muxer.addTrack(MediaFormat.createVideoFormat(mime, 1920, 1088));
+
+        //h264 디코딩
+        try {
+            mExtractor = new MediaExtractor();
+            mExtractor.setDataSource(filePath);
+            codec = MediaCodec.createDecoderByType(mime); // Decoder를 초기화 합니다.
+
+            for (int i = 0; i < mExtractor.getTrackCount(); i++) {
+                int inputBufferIndex = codec.dequeueInputBuffer(-1);
+                codec.configure(mediaFormat, null, null, 0);
+                MediaFormat outputFormat;
+                codec.start();
+
+                if (inputBufferIndex >= 0) {
+                    // if API level >= 21, get input buffer here
+                    ByteBuffer inputBuffer = codec.getInputBuffer(inputBufferIndex);
+                    //inputBuffer.put(frame);
+                    // fill inputBuffers[inputBufferIndex] with valid data
+                    codec.queueInputBuffer(inputBufferIndex, 0, 5, 0, 0);
+                }
+
+                MediaCodec.BufferInfo bufferInfo = new MediaCodec.BufferInfo();
+                int outputBufferIndex = codec.dequeueOutputBuffer(bufferInfo, 0);
+                if (outputBufferIndex >= 0) { // 0 이상일 경우에 인코딩/디코딩 데이터가 출력됩니다.
+                    ByteBuffer outputBuffer = codec.getOutputBuffer(outputBufferIndex);
+                    MediaFormat bufferFormat = codec.getOutputFormat(outputBufferIndex);
+
+                    codec.releaseOutputBuffer(outputBufferIndex, true);
+
+                } else if (outputBufferIndex == MediaCodec.INFO_OUTPUT_BUFFERS_CHANGED) {
+                    // Subsequent data will conform to new format.
+                    // Can ignore if using getOutputFormat(outputBufferId)
+                    outputFormat = codec.getOutputFormat();
+                } else if (outputBufferIndex == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
+                    // 트랙 추가가 완료되면 start를 호출하여 muxer를 시작합니다.
+
+                    MediaFormat audioFormat = new MediaFormat();
+                    MediaFormat videoFormat = new MediaFormat();
+
+                    // MediaFormat에 따라서 Track을 추가하게되면, TrackIndex가 생성됩니다.
+                    int audioTrackIndex = muxer.addTrack(audioFormat);
+                    int videoTrackIndex = muxer.addTrack(videoFormat);
+                    ByteBuffer inputBuffer = ByteBuffer.allocate(4);
+                    boolean finished = false;
+                    boolean isAudioSample = false;
+
+                    muxer.start();
+                    /*while (!finished) {
+                        // getInputBuffer() will fill the inputBuffer with one frame of encoded
+                        // sample from either MediaCodec or MediaExtractor, set isAudioSample to
+                        // true when the sample is audio data, set up all the fields of bufferInfo,
+                        // and return true if there are no more samples.
+
+                        finished = codec.getInputBuffer(inputBuffer, isAudioSample, bufferInfo);
+                        if (!finished) {
+                            int currentTrackIndex = isAudioSample ? audioTrackIndex : videoTrackIndex;
+                            muxer.writeSampleData(currentTrackIndex, inputBuffer, bufferInfo);
+                        }
+                    };*/
+
+                }
+                muxer.stop();
+                muxer.release();
+
+                try {
+                    if (mime.startsWith(("video/"))) {
+
+                        try {
+                            Log.d("Format Log", "format : " + mediaFormat);
+                            codec.configure(mediaFormat, null, null, 0); // 사용할 Format 정보를 셋팅합니다.
+                        } catch (IllegalStateException e) {
+                            Log.e("Codec Log", "codec '" + mime + "' failed configuration. " + e);
+                            //return false;
+                        }
+                        codec.start(); // 문제가 없다면 Decoder를 시작합니다.
+                        break;
+                    }
+
+
+                    Thread.sleep(250);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+                codec.stop();
+                codec.release();
+                mExtractor.release();
+                //mExtractor = null;
+                //codec = null;
+            }
+        }
+        catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private MediaCodec createVideoDecoder(MediaCodec codecInfo, MediaFormat format, int surfaceReference) throws IOException {
+
+        MediaExtractor extractor = null;
+        MediaCodec decoder = null;
+
+
+        mExtractor = new MediaExtractor();
+        mExtractor.setDataSource(this.filePath);
+        int inputChunk = 0;
+        long firstInputTimeNsec = -1;
+
+
+        int trackIndex = selectTrack(mExtractor);
+
+        if (trackIndex < 0) {
+            throw new RuntimeException("No video track found in " + this.filePath);
+        }
+        mExtractor.selectTrack(trackIndex);
+
+        MediaFormat decoderformat = mExtractor.getTrackFormat(trackIndex);
+
+        // Create a MediaCodec decoder, and configure it with the MediaFormat from the
+        // extractor.  It's very important to use the format from the extractor because
+        // it contains a copy of the CSD-0/CSD-1 codec-specific data chunks.
+        String mime = format.getString(MediaFormat.KEY_MIME);
+        codec = MediaCodec.createDecoderByType(mime);
+        codec.configure(format, null, null, 0);
+        codec.start();
+
+        int inputBufIndex = codec.dequeueInputBuffer(-1);
+        if (inputBufIndex >= 0) {
+            if (firstInputTimeNsec == -1) {
+                firstInputTimeNsec = System.nanoTime();
+            }
+
+            ByteBuffer inputBuf = codec.getInputBuffer(inputBufIndex);
+            // Read the sample data into the ByteBuffer.  This neither respects nor
+            // updates inputBuf's position, limit, etc.
+            int chunkSize = mExtractor.readSampleData(inputBuf, 0);
+            if (chunkSize < 0) {
+                // End of stream -- send empty frame with EOS flag set.
+                codec.queueInputBuffer(inputBufIndex, 0, 0, 0L, MediaCodec.BUFFER_FLAG_END_OF_STREAM);
+                boolean inputDone = true;
+                if (VERBOSE) Log.d("Format Log", "sent input EOS");
+            } else {
+                if (mExtractor.getSampleTrackIndex() != trackIndex) {
+                    Log.w("Format Log", "WEIRD: got sample from track " +
+                            mExtractor.getSampleTrackIndex() + ", expected " + trackIndex);
+                }
+                long presentationTimeUs = mExtractor.getSampleTime();
+                codec.queueInputBuffer(inputBufIndex, 0, chunkSize,
+                        presentationTimeUs, 0 /*flags*/);
+                if (VERBOSE) {
+                    Log.d("Format Log", "submitted frame " + inputChunk + " to dec, size=" + chunkSize);
+                }
+                inputChunk++;
+                mExtractor.advance();
+            }
+        } else {
+            if (VERBOSE) Log.d("Format Log", "input buffer not available");
+        }
+        codec.release();
+        mExtractor.release();
+
+        return codec;
+
+    }
+
+    private static int selectTrack(MediaExtractor extractor) {
+        // Select the first video track we find, ignore the rest.
+        int numTracks = extractor.getTrackCount();
+        for (int i = 0; i < numTracks; i++) {
+            MediaFormat format = extractor.getTrackFormat(i);
+            String mime = format.getString(MediaFormat.KEY_MIME);
+            if (mime.startsWith("video/")) {
+                if (VERBOSE) {
+                    Log.d("Format Log", "Extractor selected track " + i + " (" + mime + "): " + format);
+                }
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
+    private MediaCodec createVideoEncoder(MediaCodecInfo codecInfo, MediaFormat format, AtomicReference<Surface> surfaceReference)
+            throws IOException {
+        MediaCodec encoder = MediaCodec.createByCodecName(codecInfo.getName());
+        encoder.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE);
+        // Must be called before start() is.
+        surfaceReference.set(encoder.createInputSurface());
+        encoder.start();
+
+        encoder.stop();
+        encoder.release();
+
+        return encoder;
+    }
+
+    private MediaMuxer createMuxer(String filePath) throws IOException {
+
+        return new MediaMuxer(filePath, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4);
+
+    }

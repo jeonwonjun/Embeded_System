@@ -1,0 +1,102 @@
+from picamera import PiCamera
+from time import sleep
+import datetime
+import sys, os
+import requests
+import firebase_admin
+from firebase_admin import credentials
+from firebase_admin import storage
+from firebase_admin import db
+from uuid import uuid4
+import RPi.GPIO as GPIO
+import time
+import string
+import random
+
+
+pinPiezo = 2
+GPIO.setmode(GPIO.BCM)
+GPIO.setup(pinPiezo, GPIO.OUT)
+Buzz = GPIO.PWM(pinPiezo, 440)
+
+//파이어 베이스 스토리지 및 데이터베이스 연결
+PROJECT_ID = "embedded-pushtest"
+
+cred = credentials.Certificate("/home/tlqkf/serviceAccountKey.json")
+default_app = firebase_admin.initialize_app(cred, {
+    'storageBucket': f"{PROJECT_ID}.appspot.com", 
+    'databaseURL': "https://embedded-pushtest-default-rtdb.firebaseio.com/"
+
+})
+
+
+camera = PiCamera()
+
+//파이어베이스 스토리지 파일 업로드 과정
+def fileUpload(file):
+    bucket = storage.bucket()
+    blob = bucket.blob('Images/'+file)
+    new_token = uuid4()
+    metadata = {"firebaseStorageDownloadTokens": new_token}
+    blob.metadata = metadata
+    blob.upload_from_filename(filename='/home/tlqkf/Images/'+file, content_type='video/h264')
+    print(blob.public_url)
+
+//영상 녹화 및 데이터 베이스 url 업로드
+def execute_camera():
+    
+    url0 = "https://firebasestorage.googleapis.com/v0/b/embedded-pushtest.appspot.com/o/Images%2F"
+    url = "?alt=media"
+    suffix = datetime.datetime.now().strftime("%Y%m%d_%H%M%S") + '.h264'
+    filename = "_".join([suffix])
+
+    camera.start_recording('/home/tlqkf/Images/' + filename)
+    camera.wait_recording(7)
+    camera.stop_recording()
+    ref = db.reference('Image/Video')
+    
+    //필드 이름을 8자리 랜덤 소문자 영어 생성
+    _LENGTH = 8
+    string_pool = string.ascii_lowercase 
+    result = ""
+    for i in range(_LENGTH) :
+        result += random.choice(string_pool)
+    fileUpload(filename)
+    ref.update({result : url0 + suffix + url})
+
+
+pin = 26
+pin2 = 18
+
+GPIO.setmode(GPIO.BCM)
+GPIO.setup(pin, GPIO.IN)
+GPIO.setup(pin2, GPIO.IN)
+
+time.sleep(2)
+print('Ready')
+
+chk = 0
+
+
+//움직임이 2초 감지가 된다면 부저를 5초간 울리고 화면 녹화
+try:
+    while True:
+        if(GPIO.input(pin) or GPIO.input(pin2) ==1):
+            print('motion')
+            chk += 1
+            if chk >= 2:
+                Buzz.start(99)
+                Buzz.ChangeFrequency(523) 
+                time.sleep(5)
+                Buzz.stop()
+       execute_camera()
+                chk = 0
+        else:
+            print('noting')
+        time.sleep(1)
+
+except KeyboardInterrupt:
+    pass
+    print('Exit with ^C. Goodbye!')
+    GPIO.cleanup()
+    exit()
