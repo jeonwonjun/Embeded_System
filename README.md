@@ -29,6 +29,6 @@
    - 어플리케이션과 Firebase 연동
    - 어플리케이션에서 FCM테스트
    - 모션을 감지했을 때, FCM푸시알람
-   - Firebase Stroage, Realtime Database 생성
+   - Firebase Storage, Realtime Database 생성
    - Realtime Database에 저장된 데이터를 리스트로 뽑기
    - Storage에 녹화된 영상확인
